@@ -10,7 +10,7 @@ import tempfile
 import os
 import sys
 
-RANGES = ((1, 15), (16, 30), (31, 45), (46, 50), (51, 65))
+RANGES = ((1, 15), (16, 30), (31, 45), (46, 60), (61, 75))
 
 def make_cards(count):
     rng = random.SystemRandom()
