@@ -1,0 +1,94 @@
+name: Build portable applications
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: ./Build.ps1
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bingo-Windows-x64
+          path: dist/Bingo-Kartengenerator.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk python3-venv libfuse2 curl binutils
+
+      - name: Build Linux executables
+        run: bash Build.sh
+
+      - name: Upload Linux executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bingo-Linux-x64
+          path: |
+            dist/Bingo-Kartengenerator.AppImage
+            dist/Bingo-Kartengenerator
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bingo-Windows-x64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bingo-Linux-x64
+          path: release
+
+      - name: Publish executables
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mv release/Bingo-Kartengenerator release/Bingo-Kartengenerator-linux-x64
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --verify-tag --generate-notes --title "Bingo-Kartengenerator $TAG"
+          fi
